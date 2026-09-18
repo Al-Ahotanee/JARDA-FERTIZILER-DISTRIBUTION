@@ -65,9 +65,20 @@ def init_db():
                 ward TEXT,
                 polling_unit TEXT,
                 farm_size REAL,
+                passport_photo TEXT,
+                coop_evidence TEXT,
+                coop_name TEXT,
                 total_bags_received INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
+        ''')
+
+        # Safety net for databases created before these columns existed
+        cur.execute('''
+            ALTER TABLE farmers
+                ADD COLUMN IF NOT EXISTS passport_photo TEXT,
+                ADD COLUMN IF NOT EXISTS coop_evidence TEXT,
+                ADD COLUMN IF NOT EXISTS coop_name TEXT
         ''')
 
         cur.execute('''
@@ -90,7 +101,7 @@ def init_db():
         ''')
 
         cur.execute('''
-            CREATE TABLE IF NOT EXISTS sessions (
+            CREATE TABLE IF NOT EXISTS seasons (
                 id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
                 fertilizer_type TEXT NOT NULL,
@@ -107,7 +118,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS farmer_requests (
                 id SERIAL PRIMARY KEY,
                 farmer_id TEXT NOT NULL REFERENCES farmers(id),
-                session_id INTEGER NOT NULL REFERENCES sessions(id),
+                season_id INTEGER NOT NULL REFERENCES seasons(id),
                 requested_bags INTEGER NOT NULL,
                 allocated_bags INTEGER DEFAULT 0,
                 status TEXT DEFAULT 'pending',
@@ -389,12 +400,28 @@ def register_farmer():
         ward         = sanitize_input(data.get('ward', ''))
         polling_unit = sanitize_input(data.get('polling_unit', ''))
         farm_size    = float(data.get('farm_size', 0))
+        coop_name    = sanitize_input(data.get('coop_name', ''))
+
+        # Passport photograph and evidence of farm cooperative membership are
+        # accepted as base64 data URLs (e.g. "data:image/png;base64,....").
+        # They are not passed through sanitize_input/bleach because that would
+        # corrupt the base64 payload.
+        passport_photo = data.get('passport_photo', '') or ''
+        coop_evidence   = data.get('coop_evidence', '') or ''
+        if passport_photo and not passport_photo.startswith('data:'):
+            return jsonify({'success': False, 'message': 'Invalid passport photo format'}), 400
+        if coop_evidence and not coop_evidence.startswith('data:'):
+            return jsonify({'success': False, 'message': 'Invalid cooperative evidence format'}), 400
 
         conn = get_db()
         with conn.cursor() as cur:
             cur.execute(
-                'INSERT INTO farmers (id, name, password, phone, lga, ward, polling_unit, farm_size) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)',
-                (farmer_id, name, password, phone, lga, ward, polling_unit, farm_size)
+                '''INSERT INTO farmers
+                   (id, name, password, phone, lga, ward, polling_unit, farm_size,
+                    passport_photo, coop_evidence, coop_name)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+                (farmer_id, name, password, phone, lga, ward, polling_unit, farm_size,
+                 passport_photo, coop_evidence, coop_name)
             )
         conn.commit()
         conn.close()
@@ -611,10 +638,10 @@ def get_inventory():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-# ============= SESSION MANAGEMENT ENDPOINTS =============
+# ============= SEASON MANAGEMENT ENDPOINTS =============
 
-@app.route('/api/sessions', methods=['POST'])
-def create_session():
+@app.route('/api/seasons', methods=['POST'])
+def create_season():
     try:
         data            = request.json
         name            = sanitize_input(data['name'])
@@ -632,40 +659,40 @@ def create_session():
                 conn.close()
                 return jsonify({'success': False, 'message': f'Insufficient inventory. Available: {available} bags'}), 400
             cur.execute(
-                "INSERT INTO sessions (name, fertilizer_type, total_bags, start_time, end_time, created_by, status) VALUES (%s, %s, %s, %s, %s, %s, 'active') RETURNING id",
+                "INSERT INTO seasons (name, fertilizer_type, total_bags, start_time, end_time, created_by, status) VALUES (%s, %s, %s, %s, %s, %s, 'active') RETURNING id",
                 (name, fertilizer_type, total_bags, start_time, end_time, created_by)
             )
-            session_id = cur.fetchone()['id']
+            season_id = cur.fetchone()['id']
         conn.commit()
         conn.close()
-        log_audit(created_by, 'admin', 'create_session', f'Session {name} created with {total_bags} bags')
-        return jsonify({'success': True, 'message': 'Session created successfully', 'session_id': session_id})
+        log_audit(created_by, 'admin', 'create_season', f'Season {name} created with {total_bags} bags')
+        return jsonify({'success': True, 'message': 'Season created successfully', 'season_id': season_id})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@app.route('/api/sessions', methods=['GET'])
-def get_sessions():
+@app.route('/api/seasons', methods=['GET'])
+def get_seasons():
     try:
         conn = get_db()
         with conn.cursor() as cur:
-            cur.execute('SELECT * FROM sessions ORDER BY created_at DESC')
-            sessions = [dict(r) for r in cur.fetchall()]
+            cur.execute('SELECT * FROM seasons ORDER BY created_at DESC')
+            seasons = [dict(r) for r in cur.fetchall()]
         conn.close()
-        return jsonify({'success': True, 'data': sessions})
+        return jsonify({'success': True, 'data': seasons})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@app.route('/api/sessions/active', methods=['GET'])
-def get_active_sessions():
+@app.route('/api/seasons/active', methods=['GET'])
+def get_active_seasons():
     try:
         conn = get_db()
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM sessions WHERE status = 'active' AND end_time > NOW() ORDER BY created_at DESC")
-            sessions = [dict(r) for r in cur.fetchall()]
+            cur.execute("SELECT * FROM seasons WHERE status = 'active' AND end_time > NOW() ORDER BY created_at DESC")
+            seasons = [dict(r) for r in cur.fetchall()]
         conn.close()
-        return jsonify({'success': True, 'data': sessions})
+        return jsonify({'success': True, 'data': seasons})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -677,26 +704,26 @@ def submit_request():
     try:
         data           = request.json
         farmer_id      = sanitize_input(data['farmer_id'])
-        session_id     = int(data['session_id'])
+        season_id     = int(data['season_id'])
         requested_bags = int(data['requested_bags'])
 
         conn = get_db()
         with conn.cursor() as cur:
-            cur.execute("SELECT id FROM sessions WHERE id = %s AND status = 'active'", (session_id,))
+            cur.execute("SELECT id FROM seasons WHERE id = %s AND status = 'active'", (season_id,))
             if not cur.fetchone():
                 conn.close()
-                return jsonify({'success': False, 'message': 'Session not found or inactive'}), 400
-            cur.execute('SELECT id FROM farmer_requests WHERE farmer_id = %s AND session_id = %s', (farmer_id, session_id))
+                return jsonify({'success': False, 'message': 'Season not found or inactive'}), 400
+            cur.execute('SELECT id FROM farmer_requests WHERE farmer_id = %s AND season_id = %s', (farmer_id, season_id))
             if cur.fetchone():
                 conn.close()
-                return jsonify({'success': False, 'message': 'You already submitted a request for this session'}), 400
+                return jsonify({'success': False, 'message': 'You already submitted a request for this season'}), 400
             cur.execute(
-                "INSERT INTO farmer_requests (farmer_id, session_id, requested_bags, status) VALUES (%s, %s, %s, 'pending')",
-                (farmer_id, session_id, requested_bags)
+                "INSERT INTO farmer_requests (farmer_id, season_id, requested_bags, status) VALUES (%s, %s, %s, 'pending')",
+                (farmer_id, season_id, requested_bags)
             )
         conn.commit()
         conn.close()
-        log_audit(farmer_id, 'farmer', 'submit_request', f'Requested {requested_bags} bags for session {session_id}')
+        log_audit(farmer_id, 'farmer', 'submit_request', f'Requested {requested_bags} bags for season {season_id}')
         return jsonify({'success': True, 'message': 'Request submitted successfully'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -708,8 +735,8 @@ def get_farmer_requests(farmer_id):
         conn = get_db()
         with conn.cursor() as cur:
             cur.execute('''
-                SELECT r.*, s.name as session_name, s.fertilizer_type
-                FROM farmer_requests r JOIN sessions s ON r.session_id = s.id
+                SELECT r.*, s.name as season_name, s.fertilizer_type
+                FROM farmer_requests r JOIN seasons s ON r.season_id = s.id
                 WHERE r.farmer_id = %s ORDER BY r.created_at DESC
             ''', (farmer_id,))
             rows = [dict(r) for r in cur.fetchall()]
@@ -719,16 +746,16 @@ def get_farmer_requests(farmer_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@app.route('/api/requests/session/<int:session_id>', methods=['GET'])
-def get_session_requests(session_id):
+@app.route('/api/requests/season/<int:season_id>', methods=['GET'])
+def get_season_requests(season_id):
     try:
         conn = get_db()
         with conn.cursor() as cur:
             cur.execute('''
                 SELECT r.*, f.name as farmer_name, f.farm_size, f.lga, f.ward
                 FROM farmer_requests r JOIN farmers f ON r.farmer_id = f.id
-                WHERE r.session_id = %s ORDER BY r.created_at ASC
-            ''', (session_id,))
+                WHERE r.season_id = %s ORDER BY r.created_at ASC
+            ''', (season_id,))
             rows = [dict(r) for r in cur.fetchall()]
         conn.close()
         return jsonify({'success': True, 'data': rows})
@@ -738,30 +765,30 @@ def get_session_requests(session_id):
 
 # ============= ALLOCATION ENDPOINT =============
 
-@app.route('/api/allocate/<int:session_id>', methods=['POST'])
-def allocate_fertilizer(session_id):
+@app.route('/api/allocate/<int:season_id>', methods=['POST'])
+def allocate_fertilizer(season_id):
     try:
         admin_id = sanitize_input(request.json['admin_id'])
         conn = get_db()
         with conn.cursor() as cur:
-            cur.execute('SELECT * FROM sessions WHERE id = %s', (session_id,))
-            session = cur.fetchone()
-            if not session:
+            cur.execute('SELECT * FROM seasons WHERE id = %s', (season_id,))
+            season = cur.fetchone()
+            if not season:
                 conn.close()
-                return jsonify({'success': False, 'message': 'Session not found'}), 404
+                return jsonify({'success': False, 'message': 'Season not found'}), 404
 
             cur.execute('''
                 SELECT r.*, f.farm_size, f.total_bags_received
                 FROM farmer_requests r JOIN farmers f ON r.farmer_id = f.id
-                WHERE r.session_id = %s AND r.status = 'pending' ORDER BY r.created_at ASC
-            ''', (session_id,))
+                WHERE r.season_id = %s AND r.status = 'pending' ORDER BY r.created_at ASC
+            ''', (season_id,))
             requests_list = [dict(r) for r in cur.fetchall()]
 
             if not requests_list:
                 conn.close()
-                return jsonify({'success': False, 'message': 'No pending requests for this session'}), 400
+                return jsonify({'success': False, 'message': 'No pending requests for this season'}), 400
 
-            total_bags     = session['total_bags']
+            total_bags     = season['total_bags']
             remaining_bags = total_bags
             allocations    = []
 
@@ -780,11 +807,11 @@ def allocate_fertilizer(session_id):
 
                 qr_data = {
                     'request_id': req['id'], 'farmer_id': req['farmer_id'],
-                    'session_id': session_id, 'allocated_bags': allocated
+                    'season_id': season_id, 'allocated_bags': allocated
                 }
                 blockchain_hash = add_block_to_blockchain({
                     'type': 'allocation', 'request_id': req['id'],
-                    'farmer_id': req['farmer_id'], 'session_id': session_id,
+                    'farmer_id': req['farmer_id'], 'season_id': season_id,
                     'allocated_bags': allocated, 'timestamp': datetime.now().isoformat()
                 })
                 qr_data['blockchain_hash'] = blockchain_hash
@@ -796,14 +823,14 @@ def allocate_fertilizer(session_id):
                 )
                 allocations.append({'request_id': req['id'], 'farmer_id': req['farmer_id'], 'allocated': allocated})
 
-            cur.execute("UPDATE sessions SET status = 'completed' WHERE id = %s", (session_id,))
+            cur.execute("UPDATE seasons SET status = 'completed' WHERE id = %s", (season_id,))
             cur.execute(
                 'UPDATE inventory SET quantity = quantity - %s WHERE fertilizer_type = %s',
-                (total_bags - remaining_bags, session['fertilizer_type'])
+                (total_bags - remaining_bags, season['fertilizer_type'])
             )
         conn.commit()
         conn.close()
-        log_audit(admin_id, 'admin', 'allocate', f'Allocated fertilizer for session {session_id}')
+        log_audit(admin_id, 'admin', 'allocate', f'Allocated fertilizer for season {season_id}')
         return jsonify({'success': True, 'message': f'Allocated successfully. {len(allocations)} farmers approved.', 'allocations': allocations})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -828,10 +855,10 @@ def verify_qr():
         conn = get_db()
         with conn.cursor() as cur:
             cur.execute('''
-                SELECT r.*, f.name as farmer_name, s.fertilizer_type, s.name as session_name
+                SELECT r.*, f.name as farmer_name, s.fertilizer_type, s.name as season_name
                 FROM farmer_requests r
                 JOIN farmers f ON r.farmer_id = f.id
-                JOIN sessions s ON r.session_id = s.id
+                JOIN seasons s ON r.season_id = s.id
                 WHERE r.id = %s
             ''', (request_id,))
             req = cur.fetchone()
@@ -924,6 +951,38 @@ def acknowledge_receipt():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@app.route('/api/acknowledgement_slip/<int:request_id>', methods=['GET'])
+def get_acknowledgement_slip(request_id):
+    """
+    Returns everything needed to render/print a farmer's acknowledgement slip:
+    farmer identity + passport photo, season/fertilizer details, bags collected,
+    and the exact date and time of collection (when it was acknowledged).
+    """
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute('''
+                SELECT r.id AS request_id, r.allocated_bags, r.status, r.acknowledged,
+                       r.acknowledged_at, r.distributed_at, r.blockchain_hash,
+                       f.id AS farmer_id, f.name AS farmer_name, f.phone, f.lga, f.ward,
+                       f.polling_unit, f.passport_photo, f.coop_name,
+                       s.name AS season_name, s.fertilizer_type
+                FROM farmer_requests r
+                JOIN farmers f ON r.farmer_id = f.id
+                JOIN seasons s ON r.season_id = s.id
+                WHERE r.id = %s
+            ''', (request_id,))
+            slip = cur.fetchone()
+        conn.close()
+        if not slip:
+            return jsonify({'success': False, 'message': 'Request not found'}), 404
+        if not slip['acknowledged']:
+            return jsonify({'success': False, 'message': 'This allocation has not been acknowledged yet'}), 400
+        return jsonify({'success': True, 'data': dict(slip)})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 # ============= BLOCKCHAIN ENDPOINTS =============
 
 @app.route('/api/blockchain', methods=['GET'])
@@ -958,14 +1017,14 @@ def get_admin_stats():
                 'total_farmers':     scalar('SELECT COUNT(*) FROM farmers'),
                 'total_admins':      scalar('SELECT COUNT(*) FROM admins'),
                 'total_officers':    scalar('SELECT COUNT(*) FROM store_officers'),
-                'total_sessions':    scalar('SELECT COUNT(*) FROM sessions'),
+                'total_seasons':    scalar('SELECT COUNT(*) FROM seasons'),
                 'total_allocated':   scalar("SELECT COALESCE(SUM(allocated_bags),0) FROM farmer_requests WHERE status != 'pending'"),
                 'total_distributed': scalar("SELECT COALESCE(SUM(allocated_bags),0) FROM farmer_requests WHERE status IN ('distributed','completed')"),
             }
             cur.execute('SELECT status, COUNT(*) as count FROM farmer_requests GROUP BY status')
             stats['request_status'] = [dict(r) for r in cur.fetchall()]
-            cur.execute('SELECT status, COUNT(*) as count FROM sessions GROUP BY status')
-            stats['session_status'] = [dict(r) for r in cur.fetchall()]
+            cur.execute('SELECT status, COUNT(*) as count FROM seasons GROUP BY status')
+            stats['season_status'] = [dict(r) for r in cur.fetchall()]
         conn.close()
         return jsonify({'success': True, 'data': stats})
     except Exception as e:
@@ -977,10 +1036,40 @@ def get_all_farmers():
     try:
         conn = get_db()
         with conn.cursor() as cur:
-            cur.execute('SELECT id, name, phone, lga, ward, polling_unit, farm_size, total_bags_received, created_at FROM farmers ORDER BY name')
+            # NOTE: passport_photo / coop_evidence (base64) are deliberately left out of the
+            # list view for performance. Use GET /api/farmers/<id> to fetch a single
+            # farmer's full record including the photo and cooperative evidence.
+            cur.execute('''
+                SELECT id, name, phone, lga, ward, polling_unit, farm_size, coop_name,
+                       (passport_photo IS NOT NULL AND passport_photo != '') AS has_passport_photo,
+                       (coop_evidence IS NOT NULL AND coop_evidence != '') AS has_coop_evidence,
+                       total_bags_received, created_at
+                FROM farmers ORDER BY name
+            ''')
             farmers = [dict(r) for r in cur.fetchall()]
         conn.close()
         return jsonify({'success': True, 'data': farmers})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/farmers/<farmer_id>', methods=['GET'])
+def get_farmer_detail(farmer_id):
+    """Full farmer record including passport photo and cooperative evidence."""
+    try:
+        farmer_id = sanitize_input(farmer_id)
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute('''
+                SELECT id, name, phone, lga, ward, polling_unit, farm_size, coop_name,
+                       passport_photo, coop_evidence, total_bags_received, created_at
+                FROM farmers WHERE id = %s
+            ''', (farmer_id,))
+            farmer = cur.fetchone()
+        conn.close()
+        if not farmer:
+            return jsonify({'success': False, 'message': 'Farmer not found'}), 404
+        return jsonify({'success': True, 'data': dict(farmer)})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
@@ -1017,8 +1106,8 @@ def get_pending_distributions():
         conn = get_db()
         with conn.cursor() as cur:
             cur.execute('''
-                SELECT r.*, f.name as farmer_name, s.fertilizer_type, s.name as session_name
-                FROM farmer_requests r JOIN farmers f ON r.farmer_id = f.id JOIN sessions s ON r.session_id = s.id
+                SELECT r.*, f.name as farmer_name, s.fertilizer_type, s.name as season_name
+                FROM farmer_requests r JOIN farmers f ON r.farmer_id = f.id JOIN seasons s ON r.season_id = s.id
                 WHERE r.status = 'approved' ORDER BY r.created_at ASC
             ''')
             rows = [dict(r) for r in cur.fetchall()]
@@ -1034,8 +1123,8 @@ def get_officer_distributions(officer_id):
         conn = get_db()
         with conn.cursor() as cur:
             cur.execute('''
-                SELECT r.*, f.name as farmer_name, s.fertilizer_type, s.name as session_name
-                FROM farmer_requests r JOIN farmers f ON r.farmer_id = f.id JOIN sessions s ON r.session_id = s.id
+                SELECT r.*, f.name as farmer_name, s.fertilizer_type, s.name as season_name
+                FROM farmer_requests r JOIN farmers f ON r.farmer_id = f.id JOIN seasons s ON r.season_id = s.id
                 WHERE r.distributed_by = %s ORDER BY r.distributed_at DESC
             ''', (officer_id,))
             rows = [dict(r) for r in cur.fetchall()]

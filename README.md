@@ -155,30 +155,36 @@ python app.py
 ## API Endpoints Summary
 
 ### Auth
-- `POST /api/register/farmer` — Register farmer
+- `POST /api/register/farmer` — Register farmer (self-service only; also accepts `passport_photo`, `coop_evidence`, and `coop_name` as base64 data URLs / text)
 - `POST /api/register/admin` — Register admin
 - `POST /api/register/officer` — Register store officer
 - `POST /api/login` — Login (all user types)
+
+> **Note:** Admins can view registered farmers and see the total farmer count
+> (`GET /api/farmers`, `GET /api/stats/admin`), but the admin dashboard no
+> longer exposes a way to register new farmers. Farmers register themselves
+> from the login page.
 
 ### Inventory
 - `GET /api/inventory` — List inventory
 - `POST /api/inventory` — Add stock
 
-### Sessions
-- `GET /api/sessions` — All sessions
-- `GET /api/sessions/active` — Active sessions only
-- `POST /api/sessions` — Create session
+### Seasons
+- `GET /api/seasons` — All seasons
+- `GET /api/seasons/active` — Active seasons only
+- `POST /api/seasons` — Create season
 
 ### Requests & Allocation
 - `POST /api/requests` — Farmer submits request
 - `GET /api/requests/farmer/<id>` — Farmer's requests
-- `GET /api/requests/session/<id>` — All requests in a session
-- `POST /api/allocate/<session_id>` — Admin allocates bags
+- `GET /api/requests/season/<id>` — All requests in a season
+- `POST /api/allocate/<season_id>` — Admin allocates bags
 
 ### Distribution
 - `POST /api/verify_qr` — Verify QR code
 - `POST /api/distribute` — Mark as distributed
 - `POST /api/acknowledge` — Farmer acknowledges receipt
+- `GET /api/acknowledgement_slip/<request_id>` — Printable acknowledgement slip (farmer, passport photo, bags, date & time of collection)
 
 ### Blockchain
 - `GET /api/blockchain` — Full chain
@@ -186,7 +192,8 @@ python app.py
 
 ### Dashboard
 - `GET /api/stats/admin` — Admin statistics
-- `GET /api/farmers` — All farmers
+- `GET /api/farmers` — All farmers (summary; photo/evidence returned as booleans)
+- `GET /api/farmers/<id>` — Full farmer record, including passport photo and cooperative evidence
 - `GET /api/officers` — All store officers
 - `GET /api/audit_logs` — Audit log (last 100)
 - `GET /api/distributions/pending` — Pending distributions

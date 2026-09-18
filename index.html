@@ -342,6 +342,25 @@
         .justify-content-center {
             justify-content: center;
         }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #ackSlipPrintArea, #ackSlipPrintArea * {
+                visibility: visible;
+            }
+            #ackSlipPrintArea {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                padding: 20px;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -480,6 +499,27 @@
                             <label class="form-label">Farm Size (hectares)</label>
                             <input type="number" class="form-control" id="registerFarmSize" step="0.01">
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label">Passport Photograph</label>
+                            <input type="file" class="form-control" id="registerPassportPhoto" accept="image/*">
+                            <small class="text-muted">A clear, recent passport-style photo of the farmer.</small>
+                            <div class="text-center mt-2">
+                                <img id="passportPhotoPreview" class="hidden" style="max-width:120px;max-height:120px;border-radius:6px;border:1px solid #ddd;">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Farm Cooperative Name</label>
+                            <input type="text" class="form-control" id="registerCoopName" placeholder="e.g. Katsina Rice Farmers Cooperative">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Evidence of Farm Cooperative Membership</label>
+                            <input type="file" class="form-control" id="registerCoopEvidence" accept="image/*,.pdf">
+                            <small class="text-muted">Upload a photo/scan of your cooperative membership card, certificate, or letter.</small>
+                            <div class="text-center mt-2">
+                                <img id="coopEvidencePreview" class="hidden" style="max-width:120px;max-height:120px;border-radius:6px;border:1px solid #ddd;">
+                                <span id="coopEvidenceFileName" class="text-muted small"></span>
+                            </div>
+                        </div>
                     </div>
                     <div id="officerFields" class="hidden">
                         <div class="mb-3">
@@ -507,6 +547,19 @@
             <div class="modal-body">
                 <div id="qrCodeContent"></div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Generic Detail Modal (Farmer Details / Acknowledgement Slip) -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailModalTitle">Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailModalContent"></div>
         </div>
     </div>
 </div>
@@ -548,7 +601,7 @@
                         <div class="mb-3">
                             <label class="form-label">Enter QR Code Data</label>
                             <textarea class="form-control" id="qrManualInput" rows="6" placeholder='Paste the complete QR data here (should start with { and end with })'></textarea>
-                            <small class="text-muted">Example: {"request_id":1,"farmer_id":"F001","session_id":1,"allocated_bags":50,"blockchain_hash":"abc123..."}</small>
+                            <small class="text-muted">Example: {"request_id":1,"farmer_id":"F001","season_id":1,"allocated_bags":50,"blockchain_hash":"abc123..."}</small>
                         </div>
                         <button class="btn btn-primary w-100" onclick="verifyQRCode()">
                             <i class="bi bi-check-circle"></i> Verify QR Code
@@ -599,23 +652,23 @@
     </div>
 </div>
 
-<!-- Create Session Modal -->
-<div class="modal fade" id="createSessionModal" tabindex="-1">
+<!-- Create Season Modal -->
+<div class="modal fade" id="createSeasonModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Create Distribution Session</h5>
+                <h5 class="modal-title">Create Distribution Season</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="createSessionForm">
+                <form id="createSeasonForm">
                     <div class="mb-3">
-                        <label class="form-label">Session Name</label>
-                        <input type="text" class="form-control" id="sessionName" required>
+                        <label class="form-label">Season Name</label>
+                        <input type="text" class="form-control" id="seasonName" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Fertilizer Type</label>
-                        <select class="form-control" id="sessionFertilizerType" required>
+                        <select class="form-control" id="seasonFertilizerType" required>
                             <option value="">Select Type</option>
                             <option value="Urea">Urea</option>
                             <option value="NPK">NPK</option>
@@ -624,18 +677,18 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Total Bags Available</label>
-                        <input type="number" class="form-control" id="sessionTotalBags" min="1" required>
+                        <input type="number" class="form-control" id="seasonTotalBags" min="1" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Start Time</label>
-                        <input type="datetime-local" class="form-control" id="sessionStartTime" required>
+                        <input type="datetime-local" class="form-control" id="seasonStartTime" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">End Time</label>
-                        <input type="datetime-local" class="form-control" id="sessionEndTime" required>
+                        <input type="datetime-local" class="form-control" id="seasonEndTime" required>
                     </div>
                     <button type="submit" class="btn btn-success w-100">
-                        <i class="bi bi-plus-circle"></i> Create Session
+                        <i class="bi bi-plus-circle"></i> Create Season
                     </button>
                 </form>
             </div>
@@ -759,8 +812,8 @@
             <div class="modal-body">
                 <form id="submitRequestForm">
                     <div class="mb-3">
-                        <label class="form-label">Select Session</label>
-                        <select class="form-control" id="requestSessionSelect" required></select>
+                        <label class="form-label">Select Season</label>
+                        <select class="form-control" id="requestSeasonSelect" required></select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Number of Bags Requested</label>
@@ -827,8 +880,8 @@ function setupEventListeners() {
     // Register form
     $('#registerForm').on('submit', handleRegister);
     
-    // Session form
-    $('#createSessionForm').on('submit', handleCreateSession);
+    // Season form
+    $('#createSeasonForm').on('submit', handleCreateSeason);
     
     // Inventory form
     $('#addInventoryForm').on('submit', handleAddInventory);
@@ -861,6 +914,44 @@ function setupEventListeners() {
         if (wardId) {
             loadPollingUnits(wardId, '#registerPollingUnit');
         }
+    });
+
+    // Passport photo preview
+    $('#registerPassportPhoto').on('change', function() {
+        const file = this.files[0];
+        if (!file) { $('#passportPhotoPreview').addClass('hidden'); return; }
+        readFileAsDataURL(file).then(dataUrl => {
+            $('#passportPhotoPreview').attr('src', dataUrl).removeClass('hidden');
+        });
+    });
+
+    // Cooperative evidence preview
+    $('#registerCoopEvidence').on('change', function() {
+        const file = this.files[0];
+        if (!file) {
+            $('#coopEvidencePreview').addClass('hidden');
+            $('#coopEvidenceFileName').text('');
+            return;
+        }
+        if (file.type.startsWith('image/')) {
+            readFileAsDataURL(file).then(dataUrl => {
+                $('#coopEvidencePreview').attr('src', dataUrl).removeClass('hidden');
+                $('#coopEvidenceFileName').text('');
+            });
+        } else {
+            $('#coopEvidencePreview').addClass('hidden');
+            $('#coopEvidenceFileName').text(file.name);
+        }
+    });
+}
+
+// Reads a File/Blob and resolves with a base64 data URL
+function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
     });
 }
 
@@ -908,6 +999,11 @@ function handleLogin(e) {
 }
 
 function showRegisterModal(type) {
+    $('#registerForm')[0].reset();
+    $('#passportPhotoPreview').addClass('hidden').attr('src', '');
+    $('#coopEvidencePreview').addClass('hidden').attr('src', '');
+    $('#coopEvidenceFileName').text('');
+
     $('#registerType').val(type);
     $('#farmerFields').toggleClass('hidden', type !== 'farmer');
     $('#officerFields').toggleClass('hidden', type !== 'officer');
@@ -927,7 +1023,7 @@ function showRegisterModal(type) {
     new bootstrap.Modal($('#registerModal')).show();
 }
 
-function handleRegister(e) {
+async function handleRegister(e) {
     e.preventDefault();
     
     const type = $('#registerType').val();
@@ -940,6 +1036,16 @@ function handleRegister(e) {
     
     if (type === 'farmer') {
         endpoint = '/api/register/farmer';
+
+        // Convert the uploaded passport photo and cooperative evidence to base64
+        // data URLs so they can be sent as JSON and stored with the farmer record.
+        const passportFile = $('#registerPassportPhoto')[0].files[0];
+        const coopFile = $('#registerCoopEvidence')[0].files[0];
+        const [passportPhoto, coopEvidence] = await Promise.all([
+            passportFile ? readFileAsDataURL(passportFile) : Promise.resolve(''),
+            coopFile ? readFileAsDataURL(coopFile) : Promise.resolve('')
+        ]);
+
         data = {
             farmer_id: userId,
             name: name,
@@ -948,7 +1054,10 @@ function handleRegister(e) {
             lga: $('#registerLga option:selected').text(),
             ward: $('#registerWard option:selected').text(),
             polling_unit: $('#registerPollingUnit option:selected').text(),
-            farm_size: $('#registerFarmSize').val()
+            farm_size: $('#registerFarmSize').val(),
+            coop_name: $('#registerCoopName').val(),
+            passport_photo: passportPhoto,
+            coop_evidence: coopEvidence
         };
     } else if (type === 'admin') {
         endpoint = '/api/register/admin';
@@ -977,6 +1086,9 @@ function handleRegister(e) {
                 });
                 bootstrap.Modal.getInstance($('#registerModal')).hide();
                 $('#registerForm')[0].reset();
+                $('#passportPhotoPreview').addClass('hidden').attr('src', '');
+                $('#coopEvidencePreview').addClass('hidden').attr('src', '');
+                $('#coopEvidenceFileName').text('');
             }
         },
         error: function(xhr) {
@@ -1025,7 +1137,7 @@ function loadSidebarMenu() {
     if (currentUserType === 'admin') {
         menuItems = [
             { icon: 'speedometer2', text: 'Dashboard', action: 'loadDashboardContent()' },
-            { icon: 'calendar-event', text: 'Sessions', action: 'loadSessions()' },
+            { icon: 'calendar-event', text: 'Seasons', action: 'loadSeasons()' },
             { icon: 'people', text: 'Farmers', action: 'loadFarmers()' },
             { icon: 'person-badge', text: 'Store Officers', action: 'loadOfficers()' },
             { icon: 'box-seam', text: 'Inventory', action: 'loadInventory()' },
@@ -1096,8 +1208,8 @@ function loadAdminDashboard() {
                         <div class="col-md-3">
                             <div class="stat-card blue">
                                 <i class="bi bi-calendar-event stat-card-icon"></i>
-                                <div class="stat-card-value">${stats.total_sessions}</div>
-                                <div class="stat-card-label">Total Sessions</div>
+                                <div class="stat-card-value">${stats.total_seasons}</div>
+                                <div class="stat-card-label">Total Seasons</div>
                             </div>
                         </div>
                         <div class="col-md-3">
@@ -1128,9 +1240,9 @@ function loadAdminDashboard() {
                         <div class="col-md-6">
                             <div class="content-card">
                                 <div class="content-card-header">
-                                    <div class="content-card-title">Session Status</div>
+                                    <div class="content-card-title">Season Status</div>
                                 </div>
-                                <canvas id="sessionStatusChart"></canvas>
+                                <canvas id="seasonStatusChart"></canvas>
                             </div>
                         </div>
                     </div>
@@ -1140,7 +1252,7 @@ function loadAdminDashboard() {
                 
                 // Create charts
                 createPieChart('requestStatusChart', stats.request_status);
-                createPieChart('sessionStatusChart', stats.session_status);
+                createPieChart('seasonStatusChart', stats.season_status);
             }
         }
     });
@@ -1201,7 +1313,7 @@ function loadFarmerDashboard() {
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
-                                        <th>Session</th>
+                                        <th>Season</th>
                                         <th>Fertilizer</th>
                                         <th>Requested</th>
                                         <th>Allocated</th>
@@ -1215,7 +1327,7 @@ function loadFarmerDashboard() {
                 requests.slice(0, 10).forEach(req => {
                     html += `
                         <tr>
-                            <td>${req.session_name}</td>
+                            <td>${req.season_name}</td>
                             <td>${req.fertilizer_type}</td>
                             <td>${req.requested_bags}</td>
                             <td>${req.allocated_bags || 0}</td>
@@ -1283,7 +1395,7 @@ function loadOfficerDashboard() {
                                             <thead>
                                                 <tr>
                                                     <th>Farmer</th>
-                                                    <th>Session</th>
+                                                    <th>Season</th>
                                                     <th>Fertilizer</th>
                                                     <th>Allocated Bags</th>
                                                     <th>Date</th>
@@ -1296,7 +1408,7 @@ function loadOfficerDashboard() {
                                 html += `
                                     <tr>
                                         <td>${dist.farmer_name}</td>
-                                        <td>${dist.session_name}</td>
+                                        <td>${dist.season_name}</td>
                                         <td>${dist.fertilizer_type}</td>
                                         <td>${dist.allocated_bags}</td>
                                         <td>${new Date(dist.created_at).toLocaleDateString()}</td>
@@ -1320,25 +1432,25 @@ function loadOfficerDashboard() {
     });
 }
 
-// ============= SESSION MANAGEMENT =============
+// ============= SEASON MANAGEMENT =============
 
-function loadSessions() {
-    $('#pageTitle').text('Distribution Sessions');
-    $('#pageSubtitle').text('Manage distribution sessions');
+function loadSeasons() {
+    $('#pageTitle').text('Distribution Seasons');
+    $('#pageSubtitle').text('Manage distribution seasons');
     
     $.ajax({
-        url: '/api/sessions',
+        url: '/api/seasons',
         method: 'GET',
         success: function(response) {
             if (response.success) {
-                const sessions = response.data;
+                const seasons = response.data;
                 
                 let html = `
                     <div class="content-card">
                         <div class="content-card-header">
-                            <div class="content-card-title">All Sessions</div>
-                            <button class="btn btn-success btn-sm" onclick="showCreateSessionModal()">
-                                <i class="bi bi-plus-circle"></i> Create Session
+                            <div class="content-card-title">All Seasons</div>
+                            <button class="btn btn-success btn-sm" onclick="showCreateSeasonModal()">
+                                <i class="bi bi-plus-circle"></i> Create Season
                             </button>
                         </div>
                         <div class="table-responsive">
@@ -1358,24 +1470,24 @@ function loadSessions() {
                                 <tbody>
                 `;
                 
-                sessions.forEach(session => {
-                    const canAllocate = session.status === 'active' && new Date(session.end_time) < new Date();
+                seasons.forEach(season => {
+                    const canAllocate = season.status === 'active' && new Date(season.end_time) < new Date();
                     
                     html += `
                         <tr>
-                            <td>${session.id}</td>
-                            <td>${session.name}</td>
-                            <td>${session.fertilizer_type}</td>
-                            <td>${session.total_bags}</td>
-                            <td>${new Date(session.start_time).toLocaleString()}</td>
-                            <td>${new Date(session.end_time).toLocaleString()}</td>
-                            <td><span class="badge-status badge-${session.status}">${session.status.toUpperCase()}</span></td>
+                            <td>${season.id}</td>
+                            <td>${season.name}</td>
+                            <td>${season.fertilizer_type}</td>
+                            <td>${season.total_bags}</td>
+                            <td>${new Date(season.start_time).toLocaleString()}</td>
+                            <td>${new Date(season.end_time).toLocaleString()}</td>
+                            <td><span class="badge-status badge-${season.status}">${season.status.toUpperCase()}</span></td>
                             <td>
-                                <button class="btn btn-info btn-sm" onclick="viewSessionRequests(${session.id})">
+                                <button class="btn btn-info btn-sm" onclick="viewSeasonRequests(${season.id})">
                                     <i class="bi bi-eye"></i> View Requests
                                 </button>
                                 ${canAllocate ? `
-                                    <button class="btn btn-success btn-sm" onclick="allocateFertilizer(${session.id})">
+                                    <button class="btn btn-success btn-sm" onclick="allocateFertilizer(${season.id})">
                                         <i class="bi bi-check-circle"></i> Allocate
                                     </button>
                                 ` : ''}
@@ -1397,34 +1509,34 @@ function loadSessions() {
     });
 }
 
-function showCreateSessionModal() {
+function showCreateSeasonModal() {
     // Set default start time to now
     const now = new Date();
     const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    $('#sessionStartTime').val(localDateTime);
+    $('#seasonStartTime').val(localDateTime);
     
     // Set default end time to 24 hours from now
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     const tomorrowDateTime = new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    $('#sessionEndTime').val(tomorrowDateTime);
+    $('#seasonEndTime').val(tomorrowDateTime);
     
-    new bootstrap.Modal($('#createSessionModal')).show();
+    new bootstrap.Modal($('#createSeasonModal')).show();
 }
 
-function handleCreateSession(e) {
+function handleCreateSeason(e) {
     e.preventDefault();
     
     const data = {
-        name: $('#sessionName').val(),
-        fertilizer_type: $('#sessionFertilizerType').val(),
-        total_bags: parseInt($('#sessionTotalBags').val()),
-        start_time: $('#sessionStartTime').val(),
-        end_time: $('#sessionEndTime').val(),
+        name: $('#seasonName').val(),
+        fertilizer_type: $('#seasonFertilizerType').val(),
+        total_bags: parseInt($('#seasonTotalBags').val()),
+        start_time: $('#seasonStartTime').val(),
+        end_time: $('#seasonEndTime').val(),
         created_by: currentUser.user_id
     };
     
     $.ajax({
-        url: '/api/sessions',
+        url: '/api/seasons',
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify(data),
@@ -1432,27 +1544,27 @@ function handleCreateSession(e) {
             if (response.success) {
                 Swal.fire({
                     icon: 'success',
-                    title: 'Session Created',
-                    text: 'Distribution session created successfully'
+                    title: 'Season Created',
+                    text: 'Distribution season created successfully'
                 });
-                bootstrap.Modal.getInstance($('#createSessionModal')).hide();
-                $('#createSessionForm')[0].reset();
-                loadSessions();
+                bootstrap.Modal.getInstance($('#createSeasonModal')).hide();
+                $('#createSeasonForm')[0].reset();
+                loadSeasons();
             }
         },
         error: function(xhr) {
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
-                text: xhr.responseJSON?.message || 'Failed to create session'
+                text: xhr.responseJSON?.message || 'Failed to create season'
             });
         }
     });
 }
 
-function viewSessionRequests(sessionId) {
+function viewSeasonRequests(seasonId) {
     $.ajax({
-        url: `/api/requests/session/${sessionId}`,
+        url: `/api/requests/season/${seasonId}`,
         method: 'GET',
         success: function(response) {
             if (response.success) {
@@ -1461,8 +1573,8 @@ function viewSessionRequests(sessionId) {
                 let html = `
                     <div class="content-card">
                         <div class="content-card-header">
-                            <div class="content-card-title">Session Requests</div>
-                            <button class="btn btn-secondary btn-sm" onclick="loadSessions()">
+                            <div class="content-card-title">Season Requests</div>
+                            <button class="btn btn-secondary btn-sm" onclick="loadSeasons()">
                                 <i class="bi bi-arrow-left"></i> Back
                             </button>
                         </div>
@@ -1511,7 +1623,7 @@ function viewSessionRequests(sessionId) {
     });
 }
 
-function allocateFertilizer(sessionId) {
+function allocateFertilizer(seasonId) {
     Swal.fire({
         title: 'Allocate Fertilizer?',
         text: 'This will allocate fertilizer to all pending requests using equity-based algorithm',
@@ -1522,7 +1634,7 @@ function allocateFertilizer(sessionId) {
     }).then((result) => {
         if (result.isConfirmed) {
             $.ajax({
-                url: `/api/allocate/${sessionId}`,
+                url: `/api/allocate/${seasonId}`,
                 method: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify({ admin_id: currentUser.user_id }),
@@ -1534,7 +1646,7 @@ function allocateFertilizer(sessionId) {
                             text: response.message,
                             timer: 3000
                         });
-                        loadSessions();
+                        loadSeasons();
                     }
                 },
                 error: function(xhr) {
@@ -2003,18 +2115,18 @@ function loadPollingUnits(wardId, targetSelect) {
 // ============= FARMER FUNCTIONS =============
 
 function showSubmitRequestModal() {
-    // Load active sessions
+    // Load active seasons
     $.ajax({
-        url: '/api/sessions/active',
+        url: '/api/seasons/active',
         method: 'GET',
         success: function(response) {
             if (response.success) {
-                const sessions = response.data;
-                let options = '<option value="">Select Session</option>';
-                sessions.forEach(session => {
-                    options += `<option value="${session.id}">${session.name} - ${session.fertilizer_type} (${session.total_bags} bags)</option>`;
+                const seasons = response.data;
+                let options = '<option value="">Select Season</option>';
+                seasons.forEach(season => {
+                    options += `<option value="${season.id}">${season.name} - ${season.fertilizer_type} (${season.total_bags} bags)</option>`;
                 });
-                $('#requestSessionSelect').html(options);
+                $('#requestSeasonSelect').html(options);
                 new bootstrap.Modal($('#submitRequestModal')).show();
             }
         }
@@ -2026,7 +2138,7 @@ function handleSubmitRequest(e) {
     
     const data = {
         farmer_id: currentUser.user_id,
-        session_id: $('#requestSessionSelect').val(),
+        season_id: $('#requestSeasonSelect').val(),
         requested_bags: parseInt($('#requestBags').val())
     };
     
@@ -2080,7 +2192,7 @@ function loadMyRequests() {
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
-                                        <th>Session</th>
+                                        <th>Season</th>
                                         <th>Fertilizer Type</th>
                                         <th>Requested</th>
                                         <th>Allocated</th>
@@ -2094,7 +2206,7 @@ function loadMyRequests() {
                 requests.forEach(req => {
                     html += `
                         <tr>
-                            <td>${req.session_name}</td>
+                            <td>${req.season_name}</td>
                             <td>${req.fertilizer_type}</td>
                             <td>${req.requested_bags}</td>
                             <td>${req.allocated_bags || 0}</td>
@@ -2144,7 +2256,7 @@ function loadMyAllocations() {
                     const qrDataJson = JSON.stringify({
                         request_id: req.id,
                         farmer_id: req.farmer_id,
-                        session_id: req.session_id,
+                        season_id: req.season_id,
                         allocated_bags: req.allocated_bags,
                         blockchain_hash: req.blockchain_hash
                     });
@@ -2152,7 +2264,7 @@ function loadMyAllocations() {
                     html += `
                         <div class="col-md-6 mb-3">
                             <div class="content-card">
-                                <h5>${req.session_name}</h5>
+                                <h5>${req.season_name}</h5>
                                 <p><strong>Fertilizer:</strong> ${req.fertilizer_type}</p>
                                 <p><strong>Allocated Bags:</strong> ${req.allocated_bags}</p>
                                 <p><strong>Status:</strong> <span class="badge-status badge-${req.status}">${req.status.toUpperCase()}</span></p>
@@ -2178,9 +2290,12 @@ function loadMyAllocations() {
                                     </button>
                                 ` : ''}
                                 ${req.status === 'completed' ? `
-                                    <div class="alert alert-success mt-3 mb-0">
+                                    <div class="alert alert-success mt-3 mb-2">
                                         <i class="bi bi-check-circle-fill"></i> Transaction Completed
                                     </div>
+                                    <button class="btn btn-outline-success w-100" onclick="viewAcknowledgementSlip(${req.id})">
+                                        <i class="bi bi-receipt"></i> View / Print Acknowledgement Slip
+                                    </button>
                                 ` : ''}
                             </div>
                         </div>
@@ -2231,14 +2346,14 @@ function showQRCodeModal(request) {
     const qrDataJson = JSON.stringify({
         request_id: request.id,
         farmer_id: request.farmer_id,
-        session_id: request.session_id,
+        season_id: request.season_id,
         allocated_bags: request.allocated_bags,
         blockchain_hash: request.blockchain_hash
     }, null, 2);
     
     const content = `
         <div class="qr-code-display">
-            <h4>${request.session_name}</h4>
+            <h4>${request.season_name}</h4>
             <p><strong>Fertilizer:</strong> ${request.fertilizer_type}</p>
             <p><strong>Allocated Bags:</strong> ${request.allocated_bags}</p>
             <img src="${request.qr_code}" class="img-fluid" id="qrCodeImage">
@@ -2288,6 +2403,60 @@ function copyQRData() {
         text: 'QR data copied to clipboard',
         timer: 2000,
         showConfirmButton: false
+    });
+}
+
+function viewAcknowledgementSlip(requestId) {
+    $.ajax({
+        url: `/api/acknowledgement_slip/${requestId}`,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                const s = response.data;
+                const collectedAt = s.acknowledged_at ? new Date(s.acknowledged_at) : null;
+                const content = `
+                    <div id="ackSlipPrintArea">
+                        <div class="text-center mb-3">
+                            <h4 class="mb-0">JARDA Fertilizer Distribution</h4>
+                            <small class="text-muted">Acknowledgement of Collection Slip</small>
+                        </div>
+                        <hr>
+                        <div class="row">
+                            <div class="col-8">
+                                <p class="mb-1"><strong>Farmer Name:</strong> ${s.farmer_name}</p>
+                                <p class="mb-1"><strong>Farmer ID:</strong> ${s.farmer_id}</p>
+                                <p class="mb-1"><strong>Phone:</strong> ${s.phone || 'N/A'}</p>
+                                <p class="mb-1"><strong>LGA / Ward:</strong> ${s.lga || 'N/A'} / ${s.ward || 'N/A'}</p>
+                                <p class="mb-1"><strong>Cooperative:</strong> ${s.coop_name || 'N/A'}</p>
+                            </div>
+                            <div class="col-4 text-center">
+                                ${s.passport_photo ? `<img src="${s.passport_photo}" style="max-width:100px;max-height:100px;border-radius:6px;border:1px solid #ddd;">` : ''}
+                            </div>
+                        </div>
+                        <hr>
+                        <p class="mb-1"><strong>Season:</strong> ${s.season_name}</p>
+                        <p class="mb-1"><strong>Fertilizer Type:</strong> ${s.fertilizer_type}</p>
+                        <p class="mb-1"><strong>Bags Collected:</strong> ${s.allocated_bags}</p>
+                        <p class="mb-1"><strong>Date of Collection:</strong> ${collectedAt ? collectedAt.toLocaleDateString() : 'N/A'}</p>
+                        <p class="mb-1"><strong>Time of Collection:</strong> ${collectedAt ? collectedAt.toLocaleTimeString() : 'N/A'}</p>
+                        <hr>
+                        <div class="hash-display">Blockchain Hash: ${s.blockchain_hash || 'N/A'}</div>
+                        <p class="text-center mt-3 mb-0"><small>This slip confirms the farmer acknowledged receipt of the fertilizer bags listed above.</small></p>
+                    </div>
+                    <div class="text-center mt-3 no-print">
+                        <button class="btn btn-primary" onclick="window.print()">
+                            <i class="bi bi-printer"></i> Print Slip
+                        </button>
+                    </div>
+                `;
+                $('#detailModalTitle').text('Acknowledgement Slip');
+                $('#detailModalContent').html(content);
+                new bootstrap.Modal($('#detailModal')).show();
+            }
+        },
+        error: function(xhr) {
+            Swal.fire('Error', xhr.responseJSON?.message || 'Failed to load acknowledgement slip', 'error');
+        }
     });
 }
 
@@ -2552,8 +2721,8 @@ function verifyQRCode() {
                             <div class="col-6">${req.farmer_name} (${req.farmer_id})</div>
                         </div>
                         <div class="row">
-                            <div class="col-6"><strong>Session:</strong></div>
-                            <div class="col-6">${req.session_name}</div>
+                            <div class="col-6"><strong>Season:</strong></div>
+                            <div class="col-6">${req.season_name}</div>
                         </div>
                         <div class="row">
                             <div class="col-6"><strong>Fertilizer:</strong></div>
@@ -2650,7 +2819,7 @@ function loadPendingDistributions() {
                                         <th>Request ID</th>
                                         <th>Farmer ID</th>
                                         <th>Farmer Name</th>
-                                        <th>Session</th>
+                                        <th>Season</th>
                                         <th>Fertilizer</th>
                                         <th>Allocated Bags</th>
                                         <th>Created</th>
@@ -2665,7 +2834,7 @@ function loadPendingDistributions() {
                             <td>${dist.id}</td>
                             <td>${dist.farmer_id}</td>
                             <td>${dist.farmer_name}</td>
-                            <td>${dist.session_name}</td>
+                            <td>${dist.season_name}</td>
                             <td>${dist.fertilizer_type}</td>
                             <td><strong>${dist.allocated_bags}</strong></td>
                             <td>${new Date(dist.created_at).toLocaleDateString()}</td>
@@ -2708,7 +2877,7 @@ function loadMyDistributions() {
                                     <tr>
                                         <th>Request ID</th>
                                         <th>Farmer</th>
-                                        <th>Session</th>
+                                        <th>Season</th>
                                         <th>Fertilizer</th>
                                         <th>Bags</th>
                                         <th>Distributed At</th>
@@ -2723,7 +2892,7 @@ function loadMyDistributions() {
                         <tr>
                             <td>${dist.id}</td>
                             <td>${dist.farmer_name}</td>
-                            <td>${dist.session_name}</td>
+                            <td>${dist.season_name}</td>
                             <td>${dist.fertilizer_type}</td>
                             <td><strong>${dist.allocated_bags}</strong></td>
                             <td>${new Date(dist.distributed_at).toLocaleString()}</td>
@@ -2762,26 +2931,33 @@ function loadFarmers() {
             if (response.success) {
                 const farmers = response.data;
                 
+                // Admins can only VIEW farmers and see how many have registered.
+                // Farmer registration is self-service only (from the login page) —
+                // there is intentionally no "Add Farmer" action here for admins.
                 let html = `
                     <div class="content-card">
                         <div class="content-card-header">
-                            <div class="content-card-title">Total Farmers: ${farmers.length}</div>
-                            <button class="btn btn-success btn-sm" onclick="showRegisterModal('farmer')">
-                                <i class="bi bi-plus-circle"></i> Add Farmer
-                            </button>
+                            <div class="content-card-title">Total Farmers Registered: ${farmers.length}</div>
+                        </div>
+                        <div class="alert alert-info mb-3">
+                            <i class="bi bi-info-circle"></i> Admins can view registered farmers here but cannot register new farmers.
+                            Farmers must register themselves from the login page.
                         </div>
                         <div class="table-responsive">
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
+                                        <th>Photo</th>
                                         <th>ID</th>
                                         <th>Name</th>
                                         <th>Phone</th>
                                         <th>LGA</th>
                                         <th>Ward</th>
                                         <th>Farm Size</th>
+                                        <th>Cooperative</th>
                                         <th>Total Bags Received</th>
                                         <th>Registered</th>
+                                        <th></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -2790,14 +2966,19 @@ function loadFarmers() {
                 farmers.forEach(farmer => {
                     html += `
                         <tr>
+                            <td>${farmer.has_passport_photo ? '<i class="bi bi-person-badge-fill text-success" title="Photo on file"></i>' : '<i class="bi bi-person-x text-muted" title="No photo"></i>'}</td>
                             <td>${farmer.id}</td>
                             <td><strong>${farmer.name}</strong></td>
                             <td>${farmer.phone || 'N/A'}</td>
                             <td>${farmer.lga || 'N/A'}</td>
                             <td>${farmer.ward || 'N/A'}</td>
                             <td>${farmer.farm_size || 0} ha</td>
+                            <td>${farmer.coop_name || 'N/A'} ${farmer.has_coop_evidence ? '<i class="bi bi-file-earmark-check text-success" title="Evidence on file"></i>' : '<i class="bi bi-file-earmark-x text-muted" title="No evidence on file"></i>'}</td>
                             <td><span class="badge bg-primary">${farmer.total_bags_received}</span></td>
                             <td>${new Date(farmer.created_at).toLocaleDateString()}</td>
+                            <td><button class="btn btn-outline-primary btn-sm" onclick="viewFarmerDetail('${farmer.id}')">
+                                <i class="bi bi-eye"></i> View
+                            </button></td>
                         </tr>
                     `;
                 });
@@ -2811,6 +2992,46 @@ function loadFarmers() {
                 
                 $('#contentArea').html(html);
             }
+        }
+    });
+}
+
+function viewFarmerDetail(farmerId) {
+    $.ajax({
+        url: `/api/farmers/${farmerId}`,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                const f = response.data;
+                const content = `
+                    <div class="text-center mb-3">
+                        ${f.passport_photo
+                            ? `<img src="${f.passport_photo}" style="max-width:150px;max-height:150px;border-radius:8px;border:1px solid #ddd;">`
+                            : `<div class="text-muted"><i class="bi bi-person-circle" style="font-size:4rem;"></i><br>No passport photo on file</div>`}
+                    </div>
+                    <p><strong>ID:</strong> ${f.id}</p>
+                    <p><strong>Name:</strong> ${f.name}</p>
+                    <p><strong>Phone:</strong> ${f.phone || 'N/A'}</p>
+                    <p><strong>LGA / Ward / Polling Unit:</strong> ${f.lga || 'N/A'} / ${f.ward || 'N/A'} / ${f.polling_unit || 'N/A'}</p>
+                    <p><strong>Farm Size:</strong> ${f.farm_size || 0} ha</p>
+                    <p><strong>Cooperative:</strong> ${f.coop_name || 'N/A'}</p>
+                    <p><strong>Total Bags Received:</strong> ${f.total_bags_received}</p>
+                    <p><strong>Registered:</strong> ${new Date(f.created_at).toLocaleString()}</p>
+                    <hr>
+                    <p><strong>Evidence of Farm Cooperative:</strong></p>
+                    ${f.coop_evidence
+                        ? (f.coop_evidence.startsWith('data:image')
+                            ? `<img src="${f.coop_evidence}" class="img-fluid" style="max-height:250px;border:1px solid #ddd;border-radius:6px;">`
+                            : `<a href="${f.coop_evidence}" target="_blank" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-pdf"></i> View Uploaded Document</a>`)
+                        : '<span class="text-muted">No evidence uploaded</span>'}
+                `;
+                $('#detailModalTitle').text('Farmer Details');
+                $('#detailModalContent').html(content);
+                new bootstrap.Modal($('#detailModal')).show();
+            }
+        },
+        error: function(xhr) {
+            Swal.fire('Error', xhr.responseJSON?.message || 'Failed to load farmer details', 'error');
         }
     });
 }
