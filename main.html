@@ -2,14 +2,29 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="JARDA FDS: Blockchain-powered fertilizer distribution system for transparent, efficient, and fair agricultural solutions in Jigawa State.">
-    <meta name="keywords" content="agritech, blockchain, fertilizer distribution, QR code, sustainable farming, Jigawa agriculture">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="JARDA FDS: Blockchain-powered fertilizer distribution system. Works offline with full IndexedDB sync.">
+    <meta name="keywords" content="agritech, blockchain, fertilizer distribution, QR code, sustainable farming, Katsina agriculture">
     <meta name="author" content="JARDA">
+
+    <!-- PWA -->
+    <meta name="application-name" content="JARDA FDS">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="JARDA FDS">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#16a34a">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+
     <title>JARDA FDS - Blockchain Powered Fertilizer Distribution System</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Offline JS -->
+    <script src="/static/js/db.js"></script>
+    <script src="/static/js/sync.js"></script>
     <style>
         body {
             font-family: 'Poppins', sans-serif;
@@ -295,5 +310,11 @@
             moveCarousel(0); // Reset position
         });
     </script>
+<script src="/static/js/offline.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    if (window.SyncManager) SyncManager.init();
+  });
+</script>
 </body>
 </html>

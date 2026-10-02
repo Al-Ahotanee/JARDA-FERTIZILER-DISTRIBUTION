@@ -2,8 +2,23 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fertilizer Distribution System - Blockchain Enabled</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>JARDA FDS - Fertilizer Distribution System</title>
+
+    <!-- PWA -->
+    <meta name="application-name" content="JARDA FDS">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="JARDA FDS">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#16a34a">
+    <meta name="description" content="Blockchain-backed fertilizer distribution — works offline.">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+
+    <!-- Offline-first JS (loaded early so IDB is ready before app logic) -->
+    <script src="/static/js/db.js"></script>
+    <script src="/static/js/sync.js"></script>
     
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -3301,6 +3316,34 @@ $(document).on('click', function(e) {
     }
 });
 
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     OFFLINE-FIRST LAYER
+     offline.js registers the Service Worker, shows the status banner,
+     install prompt, and sync drawer.
+     SyncManager.init() hydrates IndexedDB caches and starts online watcher.
+     All subsequent API calls should use SyncManager.apiFetch() instead of
+     fetch() directly so writes are queued when offline.
+════════════════════════════════════════════════════════════════════════ -->
+<script src="/static/js/offline.js"></script>
+<script>
+  // Boot the sync manager once DOM + SW are ready
+  document.addEventListener('DOMContentLoaded', function () {
+    if (window.SyncManager) {
+      SyncManager.init();
+      // Expose a patched fetch for app code:
+      // Replace calls like: fetch('/api/...', opts)
+      // With:               SyncManager.apiFetch('/api/...', opts)
+      // The SyncManager will transparently queue POST/PUT when offline.
+    }
+  });
+
+  // Reload page sections after a successful sync
+  window.addEventListener('jarda:sync-complete', function () {
+    console.log('[JARDA] Sync complete — refreshing data...');
+    if (typeof loadDashboard === 'function') loadDashboard();
+  });
 </script>
 
 </body>
