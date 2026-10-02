@@ -56,3 +56,10 @@ def create_app(config_class=Config) -> Flask:
         print("Database, blockchain, and default credentials initialised.")
 
     return app
+
+
+# ── Module-level app instance ────────────────────────────────────────────────
+# Gunicorn resolves `app:app` by importing this package and reading the `app`
+# attribute. Without this line Python finds the app/ directory (package) but
+# can't find an `app` attribute inside it → AppImportError.
+app = create_app()
