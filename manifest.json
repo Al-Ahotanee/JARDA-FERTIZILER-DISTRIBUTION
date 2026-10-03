@@ -2,6 +2,7 @@
   "name": "JARDA Fertilizer Distribution System",
   "short_name": "JARDA FDS",
   "description": "Blockchain-backed fertilizer distribution for Katsina State. Works offline with IndexedDB sync.",
+  "id": "/app",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",

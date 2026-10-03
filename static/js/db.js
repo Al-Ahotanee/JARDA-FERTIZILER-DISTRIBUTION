@@ -13,7 +13,7 @@
  */
 
 const JARDA_DB_NAME    = 'jarda-offline';
-const JARDA_DB_VERSION = 1;
+const JARDA_DB_VERSION = 2;
 
 let _db = null;
 
@@ -38,11 +38,29 @@ function openDB() {
       if (!db.objectStoreNames.contains('inventory'))
         db.createObjectStore('inventory', { keyPath: 'id' });
 
-      if (!db.objectStoreNames.contains('requests'))
-        db.createObjectStore('requests', { keyPath: 'id' });
+      // Requests store with search indexes
+      let reqStore;
+      if (!db.objectStoreNames.contains('requests')) {
+        reqStore = db.createObjectStore('requests', { keyPath: 'id' });
+      } else {
+        reqStore = req.transaction.objectStore('requests');
+      }
+      if (!reqStore.indexNames.contains('by_farmer'))
+        reqStore.createIndex('by_farmer', 'farmer_id', { unique: false });
+      if (!reqStore.indexNames.contains('by_season'))
+        reqStore.createIndex('by_season', 'season_id', { unique: false });
+      if (!reqStore.indexNames.contains('by_status'))
+        reqStore.createIndex('by_status', 'status', { unique: false });
 
-      if (!db.objectStoreNames.contains('distributions'))
-        db.createObjectStore('distributions', { keyPath: 'id' });
+      // Distributions store
+      let distStore;
+      if (!db.objectStoreNames.contains('distributions')) {
+        distStore = db.createObjectStore('distributions', { keyPath: 'id' });
+      } else {
+        distStore = req.transaction.objectStore('distributions');
+      }
+      if (!distStore.indexNames.contains('by_officer'))
+        distStore.createIndex('by_officer', 'officer_id', { unique: false });
 
       // Offline queue — auto-increment id
       if (!db.objectStoreNames.contains('offline_queue')) {
@@ -53,6 +71,13 @@ function openDB() {
       // Metadata (last sync times, etc.)
       if (!db.objectStoreNames.contains('cache_meta'))
         db.createObjectStore('cache_meta', { keyPath: 'key' });
+
+      // Generic Key-Value store for locations & dashboard stats
+      if (!db.objectStoreNames.contains('locations'))
+        db.createObjectStore('locations', { keyPath: 'key' });
+
+      if (!db.objectStoreNames.contains('stats'))
+        db.createObjectStore('stats', { keyPath: 'key' });
     };
 
     req.onsuccess = e => { _db = e.target.result; resolve(_db); };
@@ -189,6 +214,49 @@ async function clearSyncedOps() {
   }
 }
 
+// ─── Query & Offline helpers ─────────────────────────────────────────────────
+
+async function getRequestsByFarmer(farmerId) {
+  const all = await dbGetAll('requests');
+  return all.filter(r => String(r.farmer_id) === String(farmerId));
+}
+
+async function getPendingDistributions() {
+  const all = await dbGetAll('requests');
+  return all.filter(r => r.status === 'approved');
+}
+
+async function updateRequestStatus(requestId, status, fields = {}) {
+  const req = await dbGet('requests', Number(requestId)) || await dbGet('requests', String(requestId));
+  if (req) {
+    const updated = { ...req, status, ...fields };
+    await dbPut('requests', updated);
+    return updated;
+  }
+  return null;
+}
+
+async function verifyQrOffline(qrData) {
+  let parsed = qrData;
+  if (typeof qrData === 'string') {
+    try { parsed = JSON.parse(qrData); } catch (e) { return { success: false, message: 'Invalid QR format' }; }
+  }
+  const reqId = parsed.request_id;
+  const hash = parsed.blockchain_hash;
+  if (!reqId || !hash) return { success: false, message: 'Missing fields in QR' };
+
+  const req = await dbGet('requests', Number(reqId)) || await dbGet('requests', String(reqId));
+  if (!req) return { success: false, message: 'Allocation not found in local offline storage' };
+  if (req.blockchain_hash && req.blockchain_hash !== hash) {
+    return { success: false, message: 'Security verification failed: hash mismatch' };
+  }
+  if (req.status === 'distributed') return { success: false, message: 'Already distributed' };
+  if (req.status === 'completed') return { success: false, message: 'Already completed' };
+  if (req.status !== 'approved') return { success: false, message: `Status is ${req.status}, not approved` };
+
+  return { success: true, data: req };
+}
+
 // ─── High-level store accessors ──────────────────────────────────────────────
 
 const JardaDB = {
@@ -210,6 +278,10 @@ const JardaDB = {
   // Requests
   getRequests:      ()         => dbGetAll('requests'),
   getRequest:       (id)       => dbGet('requests', id),
+  getRequestsByFarmer,
+  getPendingDistributions,
+  updateRequestStatus,
+  verifyQrOffline,
   saveRequests:     (rows)     => dbPutMany('requests', rows),
   saveRequest:      (row)      => dbPut('requests', row),
 
@@ -217,6 +289,12 @@ const JardaDB = {
   getDistributions: ()         => dbGetAll('distributions'),
   saveDistributions:(rows)     => dbPutMany('distributions', rows),
   saveDistribution: (row)      => dbPut('distributions', row),
+
+  // Locations & Stats KV cache
+  getLocations:     (key)      => dbGet('locations', key).then(r => r ? r.data : null),
+  saveLocations:    (key, data)=> dbPut('locations', { key, data, timestamp: Date.now() }),
+  getStats:         (key)      => dbGet('stats', key).then(r => r ? r.data : null),
+  saveStats:        (key, data)=> dbPut('stats', { key, data, timestamp: Date.now() }),
 
   // Offline queue
   enqueue:          (method, url, body, label) => enqueueOfflineOp(method, url, body, label),
@@ -232,3 +310,4 @@ const JardaDB = {
 
 // Make available globally
 window.JardaDB = JardaDB;
+

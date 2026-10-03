@@ -845,6 +845,9 @@
 
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script>
+    if (window.SyncManager) window.SyncManager.setupAjaxBridge();
+</script>
 
 <!-- Bootstrap 5 JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -870,9 +873,19 @@ $(document).ready(function() {
     // Check if user is already logged in
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
-        currentUser = JSON.parse(savedUser);
-        currentUserType = currentUser.user_type;
-        showDashboard();
+        try {
+            currentUser = JSON.parse(savedUser);
+            currentUserType = currentUser.user_type;
+            if (currentUser.token && !localStorage.getItem('jarda_token')) {
+                localStorage.setItem('jarda_token', currentUser.token);
+            }
+            showDashboard();
+        } catch (e) {
+            console.error('Failed to parse saved user:', e);
+        }
+    }
+    if (window.SyncManager) {
+        window.SyncManager.setupAjaxBridge();
     }
     
     // Setup event listeners
@@ -988,10 +1001,18 @@ function handleLogin(e) {
                 currentUser = {
                     user_id: response.user_id,
                     user_type: response.user_type,
-                    name: response.name
+                    name: response.name,
+                    token: response.token
                 };
                 currentUserType = response.user_type;
                 localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                if (response.token) {
+                    localStorage.setItem('jarda_token', response.token);
+                }
+                if (window.SyncManager) {
+                    window.SyncManager.setupAjaxBridge();
+                    window.SyncManager.hydrateCache();
+                }
                 
                 Swal.fire({
                     icon: 'success',
@@ -1126,6 +1147,7 @@ function logout() {
     }).then((result) => {
         if (result.isConfirmed) {
             localStorage.removeItem('currentUser');
+            localStorage.removeItem('jarda_token');
             currentUser = null;
             currentUserType = null;
             $('#dashboardPage').hide();
@@ -3342,7 +3364,19 @@ $(document).on('click', function(e) {
   // Reload page sections after a successful sync
   window.addEventListener('jarda:sync-complete', function () {
     console.log('[JARDA] Sync complete — refreshing data...');
-    if (typeof loadDashboard === 'function') loadDashboard();
+    if (currentUser) {
+      if (currentUser.user_type === 'farmer') {
+        if (typeof loadFarmerDashboard === 'function') loadFarmerDashboard();
+        if (typeof loadMyAllocations === 'function') loadMyAllocations();
+      } else if (currentUser.user_type === 'admin') {
+        if (typeof loadAdminDashboard === 'function') loadAdminDashboard();
+      } else if (currentUser.user_type === 'store_officer') {
+        if (typeof loadOfficerDashboard === 'function') loadOfficerDashboard();
+        if (typeof loadPendingDistributions === 'function') loadPendingDistributions();
+      }
+    } else if (typeof loadDashboard === 'function') {
+      loadDashboard();
+    }
   });
 </script>
 

@@ -92,9 +92,14 @@
         <button id="jarda-sync-close" style="background:none;border:none;cursor:pointer;font-size:18px;">✕</button>
       </div>
       <div id="jarda-sync-list"><p style="color:#888;font-size:13px;">No pending items.</p></div>
-      <button id="jarda-manual-sync" style="width:100%;padding:10px;background:#16a34a;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;margin-top:12px;">
-        🔄 Sync Now
-      </button>
+      <div style="display:flex;gap:8px;margin-top:12px;">
+        <button id="jarda-manual-sync" style="flex:1;padding:10px;background:#16a34a;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">
+          🔄 Sync Now
+        </button>
+        <button id="jarda-clear-failed" style="padding:10px 14px;background:#ef4444;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:12px;" title="Clear failed items">
+          🗑 Clear
+        </button>
+      </div>
     `;
     Object.assign(drawer.style, {
       position:     'fixed',
@@ -133,6 +138,16 @@
         await window.SyncManager.flushQueue();
         document.getElementById('jarda-manual-sync').textContent = '🔄 Sync Now';
         await refreshSyncList();
+      }
+    };
+    document.getElementById('jarda-clear-failed').onclick = async () => {
+      if (window.JardaDB) {
+        const ops = await window.JardaDB.getPendingOps();
+        for (const op of ops) {
+          if (op.status === 'failed') await window.JardaDB.markOpSynced(op.id);
+        }
+        await refreshSyncList();
+        if (window.SyncManager) await window.SyncManager.flushQueue();
       }
     };
 

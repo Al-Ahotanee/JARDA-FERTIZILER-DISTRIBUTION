@@ -96,7 +96,9 @@ def serve_icon(filename):
     # Serve from disk if pre-generated
     icon_path = _resolve(os.path.join("static", "icons", filename))
     if icon_path:
-        return send_file(icon_path, mimetype="image/png")
+        resp = send_file(icon_path, mimetype="image/png")
+        resp.headers["Cache-Control"] = "public, max-age=604800"
+        return resp
 
     # Generate dynamically with Pillow
     try:
@@ -143,6 +145,11 @@ def serve_icon(filename):
 
 @bp.route("/favicon.ico")
 def favicon():
+    path = _resolve("favicon.ico") or _resolve(os.path.join("static", "icons", "favicon.ico"))
+    if path:
+        resp = send_file(path, mimetype="image/x-icon")
+        resp.headers["Cache-Control"] = "public, max-age=604800"
+        return resp
     return Response(status=204)
 
 
