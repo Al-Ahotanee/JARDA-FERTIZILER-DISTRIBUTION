@@ -2,15 +2,13 @@ services:
   - type: web
     name: arda-fertilizer
     env: python
-    region: frankfurt          # closest to Nigeria
+    region: frankfurt          # closest to Nigeria; change to ohio if preferred
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --access-logfile - --error-logfile -
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --access-logfile - --error-logfile -
     healthCheckPath: /health
     envVars:
       - key: SECRET_KEY
-        generateValue: true
+        generateValue: true    # Render auto-generates a secure random value
       - key: PYTHON_VERSION
-        value: "3.11.0"
-      - key: TOKEN_TTL
-        value: "28800"         # 8-hour auth token TTL
+        value: 3.11.0
